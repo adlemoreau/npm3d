@@ -64,15 +64,16 @@ def best_rigid_transform(data, ref):
     T = np.zeros((data.shape[0],1))
     
     # Calculate barycenters p_m and p_m'
-    p_m = np.mean(data, axis=1).reshape(-1,1)
-    p_m_prime = np.mean(ref, axis=1).reshape(-1,1)
+    p_m = np.mean(ref, axis=1).reshape(-1,1)
+    p_m_prime = np.mean(data, axis=1).reshape(-1,1)
     
     # Compute centered clouds Q and Q'
-    Q = data - p_m
-    Q_prime = ref - p_m_prime
+    Q = ref - p_m
+    Q_prime = data - p_m_prime
     
     # Get covariance matrix H
-    H = Q @ Q_prime.T
+    H = Q_prime @ Q.T
+    # H = Q @ Q_prime.T
     
     # Find the singular value decomposition USV.T of H
     U, S, V = np.linalg.svd(H)
@@ -84,7 +85,7 @@ def best_rigid_transform(data, ref):
         U[:,-1] = -U[:,-1]
         R = V.T @ U.T
         
-    T = p_m_prime - R @ p_m
+    T = p_m - R @ p_m_prime
     
     return R, T
 
@@ -115,14 +116,13 @@ def icp_point_to_point(data, ref, max_iter, RMS_threshold):
     neighbors_list = []
     RMS_list = []
     
-    # Initiate RMS
+    # Initiate RMS and iteration counter
     RMS = 0
-    
-    # Initiate iteration counter
     i = 0
     
     # Loop until convergence
-    while i < max_iter and RMS > RMS_threshold or i == 0:        
+    while i < max_iter and RMS > RMS_threshold or i == 0:   
+             
         # Find the nearest neighbors between the data and the ref
         tree = KDTree(ref.T)
         neighbors = tree.query(data_aligned.T, return_distance=False).squeeze()
@@ -202,7 +202,7 @@ if __name__ == '__main__':
     #
 
     # If statement to skip this part if wanted
-    if False:
+    if True:
 
         # Cloud paths
         ref2D_path = '../data/ref2D.ply'
@@ -215,7 +215,7 @@ if __name__ == '__main__':
         data2D = np.vstack((data2D_ply['x'], data2D_ply['y']))        
 
         # Apply ICP
-        data2D_opt, R_list, T_list, neighbors_list, RMS_list = icp_point_to_point(data2D, ref2D, 20, 1e-6)
+        data2D_opt, R_list, T_list, neighbors_list, RMS_list = icp_point_to_point(data2D, ref2D, 10, 1e-4)
         
         # Show ICP
         show_ICP(data2D, ref2D, R_list, T_list, neighbors_list)
@@ -226,7 +226,7 @@ if __name__ == '__main__':
         
 
     # If statement to skip this part if wanted
-    if True:
+    if False:
 
         # Cloud paths
         bunny_o_path = '../data/bunny_original.ply'
