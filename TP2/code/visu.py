@@ -129,5 +129,3 @@ def show_ICP(data, ref, R_list, T_list, neighbors_list):
 
     # Start figure
     plt.show()
-
-

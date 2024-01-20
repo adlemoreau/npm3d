@@ -59,7 +59,6 @@ def best_rigid_transform(data, ref):
            T = (d x 1) translation vector
            Such that R * data + T is aligned on ref
     '''
-
     R = np.eye(data.shape[0])
     T = np.zeros((data.shape[0],1))
     
@@ -73,7 +72,6 @@ def best_rigid_transform(data, ref):
     
     # Get covariance matrix H
     H = Q_prime @ Q.T
-    # H = Q @ Q_prime.T
     
     # Find the singular value decomposition USV.T of H
     U, S, V = np.linalg.svd(H)
@@ -119,22 +117,33 @@ def icp_point_to_point(data, ref, max_iter, RMS_threshold):
     # Initiate RMS and iteration counter
     RMS = 0
     i = 0
+    old_R = np.identity(len(data))
+    old_T = np.zeros((len(data), 1))
+    
+    tree = KDTree(ref.T)
     
     # Loop until convergence
-    while i < max_iter and RMS > RMS_threshold or i == 0:   
+    while (i < max_iter and RMS > RMS_threshold) or (i == 0):   
              
         # Find the nearest neighbors between the data and the ref
-        tree = KDTree(ref.T)
         neighbors = tree.query(data_aligned.T, return_distance=False).squeeze()
-        neighbors_list.append(neighbors)
         
         # Compute the transformation between the current data and the ref
-        R, T = best_rigid_transform(data_aligned, ref[:, neighbors])
+        R_incr, T_incr = best_rigid_transform(data_aligned, ref[:, neighbors])
+        
+        R = old_R @ R_incr
+        T = old_T + old_R @ T_incr
+        
         R_list.append(R)
         T_list.append(T)
         
+        old_R = R
+        old_T = T
+        
         # Apply the transformation to the data
-        data_aligned = R @ data_aligned + T
+        data_aligned = R_incr @ data_aligned + T_incr
+        
+        neighbors_list.append(neighbors)
         
         # Compute RMS
         distances2 = np.sum(np.power(data_aligned - ref[:, neighbors], 2), axis=0)
@@ -146,6 +155,75 @@ def icp_point_to_point(data, ref, max_iter, RMS_threshold):
     
     return data_aligned, R_list, T_list, neighbors_list, RMS_list
 
+
+def icp_point_to_point_fast(data, ref, sampling_limit, max_iter, RMS_threshold):
+    '''
+    Iterative closest point algorithm with a point to point strategy.
+    Inputs :
+        data = (d x N_data) matrix where "N_data" is the number of points and "d" the dimension
+        ref = (d x N_ref) matrix where "N_ref" is the number of points and "d" the dimension
+        sampling_limit = int
+        max_iter = stop condition on the number of iterations
+        RMS_threshold = stop condition on the distance
+    Returns :
+        data_aligned = data aligned on reference cloud
+        R_list = list of the (d x d) rotation matrices found at each iteration
+        T_list = list of the (d x 1) translation vectors found at each iteration
+        neighbors_list = At each iteration, you search the nearest neighbors of each data point in
+        the ref cloud and this obtain a (1 x N_data) array of indices. This is the list of those
+        arrays at each iteration 
+    '''
+    # Variable for aligned data
+    data_aligned = np.copy(data)
+    N_data = data.T.shape[0]
+    index_all = np.arange(N_data)
+    
+    # Initiate lists
+    R_list = []
+    T_list = []
+    neighbors_list = []
+    RMS_list = []
+    
+    # Initiate RMS and iteration counter
+    RMS = 0
+    i = 0
+    old_R = np.identity(len(data))
+    old_T = np.zeros((len(data), 1))
+    
+    # Loop until convergence
+    while ((i < max_iter) and (RMS > RMS_threshold)) or (i == 0):   
+             
+        # Find the nearest neighbors between the data and the ref
+        tree = KDTree(ref.T)
+        subset_data_aligned_index = np.random.choice(index_all, size=sampling_limit, replace=False)
+        subset_data_aligned = data_aligned[:,subset_data_aligned_index]
+        neighbors = tree.query(subset_data_aligned.T, return_distance=False).squeeze()
+        neighbors_list.append(neighbors)
+        
+        # Compute the transformation between the current data and the ref
+        R_incr, T_incr = best_rigid_transform(subset_data_aligned, ref[:, neighbors])
+        
+        R = old_R @ R_incr
+        T = old_T + old_R @ T_incr
+        
+        R_list.append(R)
+        T_list.append(T)
+        
+        old_R = R
+        old_T = T
+        
+        # Apply the transformation to the data
+        data_aligned = R_incr @ data_aligned + T_incr
+        
+        # Compute RMS
+        distances2 = np.sum(np.power(subset_data_aligned - ref[:, neighbors], 2), axis=0)
+        RMS = np.sqrt(np.mean(distances2))
+        RMS_list.append(RMS)
+        
+        # Update counter
+        i += 1
+    
+    return data_aligned, R_list, T_list, neighbors_list, RMS_list
 
 
 #------------------------------------------------------------------------------------------
@@ -202,7 +280,7 @@ if __name__ == '__main__':
     #
 
     # If statement to skip this part if wanted
-    if True:
+    if False:
 
         # Cloud paths
         ref2D_path = '../data/ref2D.ply'
@@ -215,7 +293,7 @@ if __name__ == '__main__':
         data2D = np.vstack((data2D_ply['x'], data2D_ply['y']))        
 
         # Apply ICP
-        data2D_opt, R_list, T_list, neighbors_list, RMS_list = icp_point_to_point(data2D, ref2D, 10, 1e-4)
+        data2D_opt, R_list, T_list, neighbors_list, RMS_list = icp_point_to_point(data2D, ref2D, 20, 1e-4)
         
         # Show ICP
         show_ICP(data2D, ref2D, R_list, T_list, neighbors_list)
@@ -239,7 +317,7 @@ if __name__ == '__main__':
         bunny_p = np.vstack((bunny_p_ply['x'], bunny_p_ply['y'], bunny_p_ply['z']))
 
         # Apply ICP
-        bunny_p_opt, R_list, T_list, neighbors_list, RMS_list = icp_point_to_point(bunny_p, bunny_o, 25, 1e-4)
+        bunny_p_opt, R_list, T_list, neighbors_list, RMS_list = icp_point_to_point(bunny_p, bunny_o, 30, 1e-4)
         
         # Show ICP
         show_ICP(bunny_p, bunny_o, R_list, T_list, neighbors_list)
@@ -247,3 +325,32 @@ if __name__ == '__main__':
         # Plot RMS
         plt.plot(RMS_list)
         plt.show()
+        
+
+    # Question bonus      
+    if True:
+
+            # Cloud paths
+            ndc_o_path = '../data/Notre_Dame_Des_Champs_1.ply'
+            ndc_p_path = '../data/Notre_Dame_Des_Champs_2.ply'
+            
+            # Load clouds
+            ndc_o_ply = read_ply(ndc_o_path)
+            ndc_p_ply = read_ply(ndc_p_path)
+            ndc_o = np.vstack((ndc_o_ply['x'], ndc_o_ply['y'], ndc_o_ply['z']))
+            ndc_p = np.vstack((ndc_p_ply['x'], ndc_p_ply['y'], ndc_p_ply['z']))
+
+            # Apply ICP
+            ndc_p_opt, R_list, T_list, neighbors_list, RMS_list = icp_point_to_point_fast(ndc_p, ndc_o, 1000, 100, 1e-4)
+            ndc_p_opt2, R_list2, T_list2, neighbors_list2, RMS_list2 = icp_point_to_point_fast(ndc_p, ndc_o, 10000, 100, 1e-4)
+            
+            # Show ICP
+            #show_ICP(ndc_p, ndc_o, R_list, T_list, neighbors_list)
+            
+            # Plot RMS
+            plt.plot(RMS_list, label="1000 neighbors")
+            plt.plot(RMS_list2, label="10000 neighbors")
+            print(np.std(RMS_list))
+            print(np.std(RMS_list2))
+            plt.legend()
+            plt.show()
