@@ -36,6 +36,7 @@ from ply import write_ply, read_ply
 
 # Import time package
 import time
+from tqdm import tqdm
 
 
 # ------------------------------------------------------------------------------------------
@@ -58,9 +59,8 @@ def PCA(points):
     return eigenvalues, eigenvectors
 
 
-
 def compute_local_PCA(query_points, cloud_points, radius):
-
+    
     # This function needs to compute PCA on the neighborhoods of all query_points in cloud_points
     kdtree = KDTree(cloud_points)
     neighborhoods_points = kdtree.query_radius(query_points, radius)
@@ -74,35 +74,9 @@ def compute_local_PCA(query_points, cloud_points, radius):
     return all_eigenvalues, all_eigenvectors
 
 
-### Pour le code KNN j'ai pensé à ca
-def brute_force_KNN(queries, supports, k):
+def compute_local_PCA_knn(query_points, cloud_points, k):
     
-    neighborhoods = []
-    for q in queries:
-        distances = np.linalg.norm(supports - q, axis=1)
-        idx = np.argpartition(distances, k)[:k]
-        neighborhoods.append(idx)
-
-    return neighborhoods
-
-def compute_local_PCA_knn(query_points, cloud_points, k):
-    # k is the number of neighbors 
-    # This function needs to compute PCA on the neighborhoods of all query_points in cloud_points
-
-
-    neighborhoods = brute_force_KNN(queries=query_points, supports=cloud_points, k=k)
-
-    all_eigenvalues = np.zeros((cloud.shape[0], 3))
-    all_eigenvectors = np.zeros((cloud.shape[0], 3, 3))
-    for i, idx in enumerate(neighborhoods):
-        val, vec = PCA(cloud_points[idx,:])
-        all_eigenvalues[i] = val
-        all_eigenvectors[i] = vec
-    return all_eigenvalues, all_eigenvectors
-
-### Mais j'ai trouvé ca sur github je pense plus efficace pcq on utilise des KDTREE au lieu de faire sur tout le cloud 
-def compute_local_PCA_knn(query_points, cloud_points, k):
-
+    # k is the number of neighbors
     # This function needs to compute PCA on the neighborhoods of all query_points in cloud_points
     kdtree = KDTree(cloud_points, leaf_size=k)
 
@@ -111,13 +85,12 @@ def compute_local_PCA_knn(query_points, cloud_points, k):
     all_eigenvalues = np.zeros((cloud.shape[0], 3))
     all_eigenvectors = np.zeros((cloud.shape[0], 3, 3))
     for i, idx in tqdm(enumerate(neighborhoods)):
-        val, vec = PCA(cloud_points[idx,:])
-        all_eigenvalues[i] = val
-        all_eigenvectors[i] = vec
+        eigenvalues, eigenvectors = PCA(cloud_points[idx,:])
+        all_eigenvalues[i] = eigenvalues
+        all_eigenvectors[i] = eigenvectors
     return all_eigenvalues, all_eigenvectors
 
 
-############################@@@@@@
 def compute_features(query_points, cloud_points, radius, eps=1e-8):
 # Compute the features for all query points in the cloud
     eigenvalues, eigenvectors = compute_local_PCA(query_points, cloud_points, radius)
@@ -139,7 +112,6 @@ def compute_features(query_points, cloud_points, radius, eps=1e-8):
     sinus = eigenvectors[:, 2, 0]
 
     verticality = 2*np.arcsin(sinus)/np.pi
-   
 
     return verticality, linearity, planarity, sphericity
 
@@ -157,7 +129,7 @@ if __name__ == '__main__':
 
     # PCA verification
     # ****************
-    if True:
+    if False:
 
         # Load cloud as a [N x 3] matrix
         cloud_path = '../data/Lille_street_small.ply'
@@ -187,14 +159,16 @@ if __name__ == '__main__':
         cloud_ply = read_ply(cloud_path)
         cloud = np.vstack((cloud_ply['x'], cloud_ply['y'], cloud_ply['z'])).T
 
-        # Compute PCA on the whole cloud
-        all_eigenvalues, all_eigenvectors = compute_local_PCA(cloud, cloud, 0.50)
+        # Compute PCA on the whole cloud (uncomment for PCA with radius or KNN)
+        # all_eigenvalues, all_eigenvectors = compute_local_PCA(cloud, cloud, 0.50) # PCA with radius
+        all_eigenvalues, all_eigenvectors = compute_local_PCA_knn(cloud, cloud, 30) # PCA with KNN
         normals = all_eigenvectors[:, :, 0]
 
-        # Save cloud with normals
-        write_ply('../data/Lille_street_small_normals.ply', (cloud, normals), ['x', 'y', 'z', 'nx', 'ny', 'nz'])
+        # Save cloud with normals (uncomment for PCA with radius or KNN)
+        # write_ply('../data/Lille_street_small_normals.ply', (cloud, normals), ['x', 'y', 'z', 'nx', 'ny', 'nz'])
+        write_ply('../data/Lille_street_small_normals_knn.ply', (cloud, normals), ['x', 'y', 'z', 'nx', 'ny', 'nz'])
 		
-    if True:
+    if False:
 
         # Load cloud as a [N x 3] matrix
         cloud_path = '../data/Lille_street_small.ply'
