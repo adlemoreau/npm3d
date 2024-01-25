@@ -74,9 +74,50 @@ def compute_local_PCA(query_points, cloud_points, radius):
     return all_eigenvalues, all_eigenvectors
 
 
+### Pour le code KNN j'ai pensé à ca
+def brute_force_KNN(queries, supports, k):
+    
+    neighborhoods = []
+    for q in queries:
+        distances = np.linalg.norm(supports - q, axis=1)
+        idx = np.argpartition(distances, k)[:k]
+        neighborhoods.append(idx)
+
+    return neighborhoods
+
+def compute_local_PCA_knn(query_points, cloud_points, k):
+    # k is the number of neighbors 
+    # This function needs to compute PCA on the neighborhoods of all query_points in cloud_points
 
 
+    neighborhoods = brute_force_KNN(queries=query_points, supports=cloud_points, k=k)
 
+    all_eigenvalues = np.zeros((cloud.shape[0], 3))
+    all_eigenvectors = np.zeros((cloud.shape[0], 3, 3))
+    for i, idx in enumerate(neighborhoods):
+        val, vec = PCA(cloud_points[idx,:])
+        all_eigenvalues[i] = val
+        all_eigenvectors[i] = vec
+    return all_eigenvalues, all_eigenvectors
+
+### Mais j'ai trouvé ca sur github je pense plus efficace pcq on utilise des KDTREE au lieu de faire sur tout le cloud 
+def compute_local_PCA_knn(query_points, cloud_points, k):
+
+    # This function needs to compute PCA on the neighborhoods of all query_points in cloud_points
+    kdtree = KDTree(cloud_points, leaf_size=k)
+
+    _, neighborhoods = kdtree.query(query_points, k)
+
+    all_eigenvalues = np.zeros((cloud.shape[0], 3))
+    all_eigenvectors = np.zeros((cloud.shape[0], 3, 3))
+    for i, idx in tqdm(enumerate(neighborhoods)):
+        val, vec = PCA(cloud_points[idx,:])
+        all_eigenvalues[i] = val
+        all_eigenvectors[i] = vec
+    return all_eigenvalues, all_eigenvectors
+
+
+############################@@@@@@
 def compute_features(query_points, cloud_points, radius, eps=1e-8):
 # Compute the features for all query points in the cloud
     eigenvalues, eigenvectors = compute_local_PCA(query_points, cloud_points, radius)
