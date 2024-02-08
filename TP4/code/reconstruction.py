@@ -48,11 +48,24 @@ def compute_hoppe(points, normals, scalar_field, grid_resolution, min_grid, size
 
 
 # IMLS surface reconstruction
-def compute_imls(
-    points, normals, scalar_field, grid_resolution, min_grid, size_voxel, knn
-):
-    # YOUR CODE
-    return
+def compute_imls(points, normals, scalar_field, grid_resolution, min_grid, size_voxel, knn):
+    
+    # Nearest neighbor search
+    kdtree = KDTree(points)
+    h = 0.01
+    dim = points.shape[1]
+    coord = np.arange(grid_resolution)
+    grid = np.stack(np.meshgrid(*dim*[coord], indexing='ij'), axis=-1) #attention mettre le * à la décompression pour avoir une liste sans espace mémoire partagé
+    grid = (grid * size_voxel + min_grid).astype(np.float32).reshape(-1,dim)
+    distance, neighbors_idx  = kdtree.query(grid, k=knn)
+    theta_i = np.exp(-(distance**2)/h**2)
+    inter = np.sum(normals[neighbors_idx]*(grid[:,np.newaxis]-points[neighbors_idx]),axis=-1)
+    num = np.sum(inter*theta_i, axis=-1)
+    denom = np.sum(theta_i)
+    f = num / (denom + 1e-10)
+    scalar_field[:,:,:] = f.reshape(*dim*[grid_resolution])
+
+   
 
 
 if __name__ == "__main__":
@@ -80,13 +93,7 @@ if __name__ == "__main__":
     # grid_resolution is the number of voxels in the grid in x, y, z axis
     # grid_resolution = 16
     grid_resolution = 128
-    size_voxel = np.array(
-        [
-            (max_grid[0] - min_grid[0]) / (grid_resolution - 1),
-            (max_grid[1] - min_grid[1]) / (grid_resolution - 1),
-            (max_grid[2] - min_grid[2]) / (grid_resolution - 1),
-        ]
-    ) # modified max to np.array
+    size_voxel = max([(max_grid[0]-min_grid[0])/(grid_resolution-1),(max_grid[1]-min_grid[1])/(grid_resolution-1),(max_grid[2]-min_grid[2])/(grid_resolution-1)])
 
     # Create a volume grid to compute the scalar field for surface reconstruction
     scalar_field = np.zeros(
@@ -94,17 +101,17 @@ if __name__ == "__main__":
     )
 
     # Compute the scalar field in the grid
-    compute_hoppe(points, normals, scalar_field, grid_resolution, min_grid, size_voxel)
-    # compute_imls(points,normals,scalar_field,grid_resolution,min_grid,size_voxel,30)
+    #compute_hoppe(points, normals, scalar_field, grid_resolution, min_grid, size_voxel)
+    compute_imls(points,normals,scalar_field,grid_resolution,min_grid,size_voxel,30)
 
     # Compute the mesh from the scalar field based on marching cubes algorithm
     verts, faces, normals_tri, values_tri = measure.marching_cubes(
-        scalar_field, level=0.0, spacing=(size_voxel[0], size_voxel[1], size_voxel[2])
+        scalar_field, level=0.0, spacing=(size_voxel, size_voxel, size_voxel)
     )
     verts += min_grid
 
     # Export the mesh in ply using trimesh lib
     mesh = trimesh.Trimesh(vertices=verts, faces=faces)
-    mesh.export(file_obj="../bunny_mesh_hoppe_16.ply", file_type="ply")
+    mesh.export(file_obj="../bunny_mesh_imls_"+str(grid_resolution)+".ply", file_type="ply")
 
     print("Total time for surface reconstruction : ", time.time() - t0)
