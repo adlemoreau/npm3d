@@ -55,7 +55,7 @@ def compute_imls(points, normals, scalar_field, grid_resolution, min_grid, size_
     h = 0.01
     dim = points.shape[1]
     coord = np.arange(grid_resolution)
-    grid = np.stack(np.meshgrid(*dim*[coord], indexing='ij'), axis=-1) # attention mettre le * à la décompression pour avoir une liste sans espace mémoire partagé
+    grid = np.stack(np.meshgrid(*dim*[coord], indexing='ij'), axis=-1) # be sure to put the * on decompression to obtain a list without shared memory space
     grid = (grid * size_voxel + min_grid).astype(np.float32).reshape(-1,dim)
     distance, neighbors_idx  = kdtree.query(grid, k=knn)
     theta_i = np.exp(-(distance**2)/h**2)
