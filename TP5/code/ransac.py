@@ -30,7 +30,7 @@ from ply import write_ply, read_ply
 
 # Import time package
 import time
-
+import random
 
 
 #------------------------------------------------------------------------------------------
@@ -49,6 +49,15 @@ def compute_plane(points):
     normal_plane = np.zeros((3,1))
     
     # TODO:
+    p0 = points[0].reshape(3,1)
+    p1 = points[1].reshape(3,1)
+    p2 = points[2].reshape(3,1)
+    
+    point_plane = p0 
+    p0p1 = p1-p0 
+    p0p2 = p2 - p0 
+    normal_plane = np.cross(p0p1.reshape(3),p0p2.reshape(3))
+    normal_plane = (normal_plane/(normal_plane@normal_plane)).reshape(3,1)
     
     return point_plane, normal_plane
 
@@ -58,8 +67,12 @@ def in_plane(points, pt_plane, normal_plane, threshold_in=0.1):
     
     indexes = np.zeros(len(points), dtype=bool)
     
-    # TODO:
-        
+    # TODO: 
+    ref = np.tile(pt_plane,(points.shape[0])).T
+    distance_in_plane = (normal_plane.T @ (points - ref).T).reshape(points.shape[0])
+    mask = distance_in_plane <= threshold_in 
+    indexes[mask] = 1 
+    
     return indexes
 
 
@@ -70,7 +83,20 @@ def RANSAC(points, nb_draws=100, threshold_in=0.1):
     best_pt_plane = np.zeros((3,1))
     best_normal_plane = np.zeros((3,1))
     
-    # TODO:
+    seq = list(np.arange(0,points.shape[0]))
+    for i in range(nb_draws):
+        indexes_drawn = random.sample(seq, k=3)
+        points_drawn = points[indexes_drawn,:]
+        point_plane, normal_plane = compute_plane(points=points_drawn)
+        indexes_in_plane = in_plane(points=points, 
+                                    pt_plane= point_plane, 
+                                    normal_plane = normal_plane,
+                                    threshold_in= threshold_in)
+        vote = np.sum(indexes_in_plane)
+        if vote > best_vote : 
+            best_vote = vote 
+            best_pt_plane = point_plane
+            best_normal_plane = normal_plane
                 
     return best_pt_plane, best_normal_plane, best_vote
 
@@ -83,7 +109,18 @@ def recursive_RANSAC(points, nb_draws=100, threshold_in=0.1, nb_planes=2):
     remaining_inds = np.arange(0,nb_points)
 	
     # TODO:
-    
+    for i in range(nb_planes):
+        points_iter = points[remaining_inds]
+        best_pt_plane, best_normal_plane, best_vote = RANSAC(points_iter, nb_draws=nb_draws, threshold_in=threshold_in)
+        indexes_in_plane = in_plane(points=points_iter, 
+                                    pt_plane= best_pt_plane, 
+                                    normal_plane = best_normal_plane,
+                                    threshold_in= threshold_in)
+        index_values = np.where(indexes_in_plane == 1)[0]
+        labels = np.zeros(index_values.shape[0])+i
+        plane_inds  = np.concatenate([plane_inds,index_values])
+        plane_labels = np.concatenate([plane_labels, labels])
+        
     return plane_inds, remaining_inds, plane_labels
 
 
