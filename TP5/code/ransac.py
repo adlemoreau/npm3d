@@ -30,8 +30,11 @@ from ply import write_ply, read_ply
 
 # Import time package
 import time
-import random
 
+## Additional imports
+import random
+from sklearn.neighbors import KDTree
+from tqdm import tqdm
 
 #------------------------------------------------------------------------------------------
 #
@@ -43,38 +46,30 @@ import random
 #
 
 
-def compute_plane(points):
-    
-    point_plane = np.zeros((3,1))
-    normal_plane = np.zeros((3,1))
-    
-    # TODO:
-    p0 = points[0].reshape(3,1)
-    p1 = points[1].reshape(3,1)
-    p2 = points[2].reshape(3,1)
-    
-    point_plane = p0 
-    p0p1 = p1-p0 
-    p0p2 = p2 - p0 
-    normal_plane = np.cross(p0p1.reshape(3),p0p2.reshape(3))
-    normal_plane = (normal_plane/(normal_plane@normal_plane)).reshape(3,1)
-    
-    return point_plane, normal_plane
+def compute_plane(points: np.ndarray):
+    """
+    Computes a plane (reference point + normal) from the given point cloud.
+
+    If np.linalg.norm(normal) is too small we will get NaN values,
+    which is not an issue because n_points_in_plane will be equal to 0.
+    """
+    point = points[0].reshape((3, 1))
+    normal = np.cross(points[1] - point.T, points[2] - point.T).reshape((3, 1))
+
+    return point, normal / np.linalg.norm(normal)
 
 
 
 def in_plane(points, pt_plane, normal_plane, threshold_in=0.1):
     
-    indexes = np.zeros(len(points), dtype=bool)
-    
-    # TODO: 
+    indexes = np.zeros(len(points))
+     
     ref = np.tile(pt_plane,(points.shape[0])).T
-    distance_in_plane = (normal_plane.T @ (points - ref).T).reshape(points.shape[0])
-    mask = distance_in_plane <= threshold_in 
-    indexes[mask] = 1 
+    distance_in_plane = np.abs((normal_plane.T @ (points - ref).T).reshape(points.shape[0]))
+    mask = np.flatnonzero(distance_in_plane <= threshold_in )
+    indexes[mask]=1
     
     return indexes
-
 
 
 def RANSAC(points, nb_draws=100, threshold_in=0.1):
@@ -106,11 +101,10 @@ def recursive_RANSAC(points, nb_draws=100, threshold_in=0.1, nb_planes=2):
     nb_points = len(points)
     plane_inds = np.arange(0,0)
     plane_labels = np.arange(0,0)
-    remaining_inds = np.arange(0,nb_points)
-	
-    # TODO:
+    remaining_inds = list(np.arange(0,nb_points))
+    points_iter = points
     for i in range(nb_planes):
-        points_iter = points[remaining_inds]
+        print(f'iteration {i}, remaining points {len(remaining_inds)}')
         best_pt_plane, best_normal_plane, best_vote = RANSAC(points_iter, nb_draws=nb_draws, threshold_in=threshold_in)
         indexes_in_plane = in_plane(points=points_iter, 
                                     pt_plane= best_pt_plane, 
@@ -120,9 +114,10 @@ def recursive_RANSAC(points, nb_draws=100, threshold_in=0.1, nb_planes=2):
         labels = np.zeros(index_values.shape[0])+i
         plane_inds  = np.concatenate([plane_inds,index_values])
         plane_labels = np.concatenate([plane_labels, labels])
-        
+        remaining_inds = (1-points_in_plane).nonzero()[0]
+        points_iter = points[remaining_inds]
+         
     return plane_inds, remaining_inds, plane_labels
-
 
 
 #------------------------------------------------------------------------------------------
@@ -160,7 +155,6 @@ if __name__ == '__main__':
     # Computes the plane passing through 3 randomly chosen points
     # ************************
     #
-    
     print('\n--- 1) and 2) ---\n')
     
     # Define parameter
@@ -237,7 +231,7 @@ if __name__ == '__main__':
     write_ply('../best_planes.ply', [points[plane_inds], colors[plane_inds], labels[plane_inds], plane_labels.astype(np.int32)], ['x', 'y', 'z', 'red', 'green', 'blue', 'label', 'plane_label'])
     write_ply('../remaining_points_best_planes.ply', [points[remaining_inds], colors[remaining_inds], labels[remaining_inds]], ['x', 'y', 'z', 'red', 'green', 'blue', 'label'])
     
+    print("Done!")
     
-    
-    print('Done')
+   
     
