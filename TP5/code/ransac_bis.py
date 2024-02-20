@@ -184,8 +184,36 @@ if __name__ == '__main__':
     # Save the best extracted plane and remaining points
     write_ply('../best_plane.ply', [points[plane_inds], colors[plane_inds], labels[plane_inds]], ['x', 'y', 'z', 'red', 'green', 'blue', 'label'])
     write_ply('../remaining_points_best_plane.ply', [points[remaining_inds], colors[remaining_inds], labels[remaining_inds]], ['x', 'y', 'z', 'red', 'green', 'blue', 'label'])
-    
+     
+    #### with notre dame
+    # Path of the file
+    file_path_ndc = '../data/indoor_scan.ply'
 
+    # Load point cloud
+    data_ndc = read_ply(file_path_ndc)
+
+    # Concatenate data
+    points_ndc = np.vstack((data_ndc['x'], data_ndc['y'], data_ndc['z'])).T
+    colors_ndc = np.vstack((data_ndc['red'], data_ndc['green'], data_ndc['blue'])).T
+    labels_ndc = data_ndc['label']
+    nb_points_ndc = len(points_ndc)
+    
+    ## run ransac 
+    # Find best plane by RANSAC
+    t0 = time.time()
+    best_pt_plane, best_normal_plane, best_vote = RANSAC(points, nb_draws, threshold_in)
+    t1 = time.time()
+    print('RANSAC done in {:.3f} seconds'.format(t1 - t0))
+    
+    # Find points in the plane and others
+    points_in_plane = in_plane(points, best_pt_plane, best_normal_plane, threshold_in)
+    plane_inds = points_in_plane.nonzero()[0]
+    remaining_inds = (1-points_in_plane).nonzero()[0]
+    
+    # Save the best extracted plane and remaining points
+    write_ply('../best_plane_ndc.ply', [points_ndc[plane_inds_ndc], colors_ndc[plane_inds_ndc], labels[plane_inds]], ['x', 'y', 'z', 'red', 'green', 'blue', 'label'])
+    write_ply('../remaining_points_best_plane_ndc.ply', [points[remaining_inds], colors[remaining_inds], labels[remaining_inds]], ['x', 'y', 'z', 'red', 'green', 'blue', 'label'])
+    
     # Find "all planes" in the cloud
     # ***********************************
     #

@@ -64,10 +64,12 @@ def in_plane(points, pt_plane, normal_plane, threshold_in=0.1):
     
     indexes = np.zeros(len(points))
      
-    ref = np.tile(pt_plane,(points.shape[0])).T
+    """ref = np.tile(pt_plane,(points.shape[0])).T
     distance_in_plane = np.abs((normal_plane.T @ (points - ref).T).reshape(points.shape[0]))
     mask = np.flatnonzero(distance_in_plane <= threshold_in )
-    indexes[mask]=1
+    indexes[mask]=1"""
+    dists = np.abs((points - pt_plane.T) @ normal_plane)
+    indexes = (dists < threshold_in).squeeze()
     
     return indexes
 
@@ -101,20 +103,24 @@ def recursive_RANSAC(points, nb_draws=100, threshold_in=0.1, nb_planes=2):
     nb_points = len(points)
     plane_inds = np.arange(0,0)
     plane_labels = np.arange(0,0)
-    remaining_inds = list(np.arange(0,nb_points))
+    remaining_inds = np.arange(0,nb_points)
     points_iter = points
+    
     for i in range(nb_planes):
-        print(f'iteration {i}, remaining points {len(remaining_inds)}')
+        print(f'iteration/plan {i}, remaining points {len(remaining_inds)}')
         best_pt_plane, best_normal_plane, best_vote = RANSAC(points_iter, nb_draws=nb_draws, threshold_in=threshold_in)
         indexes_in_plane = in_plane(points=points_iter, 
                                     pt_plane= best_pt_plane, 
                                     normal_plane = best_normal_plane,
                                     threshold_in= threshold_in)
-        index_values = np.where(indexes_in_plane == 1)[0]
+        """index_values = np.where(indexes_in_plane == 1)[0]
         labels = np.zeros(index_values.shape[0])+i
         plane_inds  = np.concatenate([plane_inds,index_values])
         plane_labels = np.concatenate([plane_labels, labels])
-        remaining_inds = (1-points_in_plane).nonzero()[0]
+        remaining_inds = (1-points_in_plane).nonzero()[0]"""
+        plane_inds = np.append(plane_inds, remaining_inds[indexes_in_plane])
+        plane_labels = np.append(plane_labels, np.repeat(i, indexes_in_plane.sum()))
+        remaining_inds = remaining_inds[~indexes_in_plane]
         points_iter = points[remaining_inds]
          
     return plane_inds, remaining_inds, plane_labels
