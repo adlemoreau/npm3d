@@ -53,6 +53,7 @@ def compute_plane(points: np.ndarray):
     """
     point = points[0].reshape((3, 1))
     normal = np.cross(points[1] - point.T, points[2] - point.T).reshape((3, 1))
+    
     return point, normal / np.linalg.norm(normal)
 
 
@@ -60,13 +61,9 @@ def compute_plane(points: np.ndarray):
 def in_plane(points, pt_plane, normal_plane, threshold_in=0.1):
     
     indexes = np.zeros(len(points))
-     
-    # """ref = np.tile(pt_plane,(points.shape[0])).T
-    # distance_in_plane = np.abs((normal_plane.T @ (points - ref).T).reshape(points.shape[0]))
-    # mask = np.flatnonzero(distance_in_plane <= threshold_in )
-    # indexes[mask]=1"""
     dists = np.abs((points - pt_plane.T) @ normal_plane)
     indexes = (dists < threshold_in).squeeze()
+    
     return indexes
 
 
@@ -109,11 +106,7 @@ def recursive_RANSAC(points, nb_draws=100, threshold_in=0.1, nb_planes=2):
                                     pt_plane= best_pt_plane, 
                                     normal_plane = best_normal_plane,
                                     threshold_in= threshold_in)
-        # """index_values = np.where(indexes_in_plane == 1)[0]
-        # labels = np.zeros(index_values.shape[0])+i
-        # plane_inds  = np.concatenate([plane_inds,index_values])
-        # plane_labels = np.concatenate([plane_labels, labels])
-        # remaining_inds = (1-points_in_plane).nonzero()[0]"""
+
         plane_inds = np.append(plane_inds, remaining_inds[indexes_in_plane])
         plane_labels = np.append(plane_labels, np.repeat(i, indexes_in_plane.sum()))
         remaining_inds = remaining_inds[~indexes_in_plane]
@@ -232,7 +225,7 @@ if __name__ == '__main__':
                 
     # Save the best planes and remaining points
     write_ply('../best_planes.ply', [points[plane_inds], colors[plane_inds], labels[plane_inds], plane_labels.astype(np.int32)], ['x', 'y', 'z', 'red', 'green', 'blue', 'label', 'plane_label'])
-    # write_ply('../best_planes_notredame.ply', [points[plane_inds]], ['x', 'y', 'z'])
+    # write_ply('../best_planes_notredame_5_05.ply', [points[plane_inds]], ['x', 'y', 'z'])
     write_ply('../remaining_points_best_planes.ply', [points[remaining_inds], colors[remaining_inds], labels[remaining_inds]], ['x', 'y', 'z', 'red', 'green', 'blue', 'label'])
     
     print("Done!")
