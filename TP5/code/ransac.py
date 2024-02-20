@@ -150,8 +150,8 @@ if __name__ == '__main__':
 
     # Concatenate data
     points = np.vstack((data['x'], data['y'], data['z'])).T
-    # colors = np.vstack((data['red'], data['green'], data['blue'])).T
-    # labels = data['label']
+    colors = np.vstack((data['red'], data['green'], data['blue'])).T
+    labels = data['label']
     nb_points = len(points)
     
 
@@ -222,7 +222,7 @@ if __name__ == '__main__':
     # Define parameters of recursive_RANSAC
     nb_draws = 100
     threshold_in = 0.1
-    nb_planes = 10
+    nb_planes = 2
     
     # Recursively find best plane by RANSAC
     t0 = time.time()
