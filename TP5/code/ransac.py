@@ -135,8 +135,8 @@ if __name__ == '__main__':
     #
 
     # Path of the file
-    # file_path = '../data/Notre_Dame_Des_Champs_1.ply'
     file_path = '../data/indoor_scan.ply'
+    # file_path = '../data/Notre_Dame_Des_Champs_1.ply'
 
     # Load point cloud
     data = read_ply(file_path)
@@ -229,6 +229,3 @@ if __name__ == '__main__':
     write_ply('../remaining_points_best_planes.ply', [points[remaining_inds], colors[remaining_inds], labels[remaining_inds]], ['x', 'y', 'z', 'red', 'green', 'blue', 'label'])
     
     print("Done!")
-    
-   
-    
