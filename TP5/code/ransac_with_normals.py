@@ -116,21 +116,18 @@ def compute_normals(query_points, cloud_points, k=None, radius=None):
 def normals_in_plane(points, pt_plane, normal_plane, normals_ref, threshold_in=0.1, max_angle=0.1):
     
     indexes = np.zeros(len(points))
-    print(f'normal plane shape {normal_plane.shape}')
-    print(f'normal ref shape {normals_ref.shape}')
     ref = np.tile(pt_plane,(points.shape[0])).T
-    distance_in_plane = np.abs((normal_plane.T @ (points - ref).T).reshape(points.shape[0]))
-    print(f'distacein plane shape {distance_in_plane.shape}')
-    mask_dist = np.flatnonzero(distance_in_plane <= threshold_in )
+    mask_dist = np.zeros(len(points))
+    dists = np.abs((points - pt_plane.T) @ normal_plane)
+    mask_dist = (dists < threshold_in).squeeze()  
     # Calculate the dot product between the normals and the reference direction
     cosine_values = np.clip((normals_ref @ normal_plane).squeeze(), -1, 1)
-    print(f'cosine value shape {cosine_values.shape}')
     # Calculate the angles using the arccosine function
     angles = np.arccos(cosine_values)
     mask_normals = angles < max_angle
     mask = (mask_dist & mask_normals)
-    indexes[mask]=1
-    return indexes
+    
+    return mask
 
 def normals_RANSAC(points, normals, nb_draws=100, threshold_in=0.1, max_angle=0.1):
     
@@ -172,12 +169,13 @@ def normals_recursive_RANSAC(points, nb_draws=100, threshold_in=0.1, max_angle=0
     normals = compute_normals(points, points, k=k, radius=radius)
     print(normals.shape)
     for label in range(nb_planes):
-        pt_plane, normal_plane, _ = normals_RANSAC(points, 
+        pt_plane, normal_plane, _ = normals_RANSAC(points[remaining_indices], 
                                         normals[remaining_indices], 
                                         nb_draws=nb_draws, 
                                         threshold_in=threshold_in, 
                                         max_angle=max_angle)
-        pts_in_plane = normals_in_plane(points,
+        
+        pts_in_plane = normals_in_plane(points[remaining_indices],
                                         pt_plane, 
                                         normal_plane,
                                         normals[remaining_indices], 
