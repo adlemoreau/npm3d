@@ -224,45 +224,46 @@ if __name__ == '__main__':
 
     print("\n--- 5) ---\n")
     radius = None 
-    k = 30
-    nb_draws = 100
+    k_list = [10, 30, 50]
+    nb_draws = 400
     threshold_in = 0.10
     max_angle = 0.10
-    nb_planes = 2
-    
-    t0 = time.time()
-    pts_in_plane_indices, remaining_pts_indices, pts_in_plane_labels = normals_recursive_RANSAC(
-        points,
-        nb_draws,
-        threshold_in,
-        nb_planes,
-        k=k,
-        radius=radius
-    )
-    t1 = time.time()
-    print('normal recursive RANSAC done in {:.3f} seconds'.format(t1 - t0))
+    nb_planes_list = [2,3,4,5]
+    for k in k_list:
+        for nb_planes in nb_planes_list:
+            t0 = time.time()
+            pts_in_plane_indices, remaining_pts_indices, pts_in_plane_labels = normals_recursive_RANSAC(
+                points,
+                nb_draws,
+                threshold_in,
+                nb_planes,
+                k=k,
+                radius=radius
+            )
+            t1 = time.time()
+            print('normal recursive RANSAC done in {:.3f} seconds'.format(t1 - t0))
+            str_save_best_plane = "../best_planes_normals_"+str(nb_planes)+"neighbors_"+str(k)+".ply"
+            write_ply(
+            str_save_best_plane,
+                [
+                    points[pts_in_plane_indices],
+                    colors[pts_in_plane_indices],
+                    labels[pts_in_plane_indices],
+                    pts_in_plane_labels.astype(np.int32),
+                ],
+                ["x", "y", "z", "red", "green", "blue", "label", "plane_label"],
+            )
+            str_save_remaining =  "../remaining_points_best_planes_normals_"+str(nb_planes)+"neighbors_"+str(k)+".ply"
+            write_ply(str_save_remaining, 
+                [
+                    points[remaining_pts_indices],
+                    colors[remaining_pts_indices],
+                    labels[remaining_pts_indices],
+                ],
+                ["x", "y", "z", "red", "green", "blue", "label"],
+            )
 
-    write_ply(
-        "../best_planes_normals.ply",
-        [
-            points[pts_in_plane_indices],
-            colors[pts_in_plane_indices],
-            labels[pts_in_plane_indices],
-            pts_in_plane_labels.astype(np.int32),
-        ],
-        ["x", "y", "z", "red", "green", "blue", "label", "plane_label"],
-    )
-    write_ply(
-        "../remaining_points_best_planes_normals.ply",
-        [
-            points[remaining_pts_indices],
-            colors[remaining_pts_indices],
-            labels[remaining_pts_indices],
-        ],
-        ["x", "y", "z", "red", "green", "blue", "label"],
-    )
-
-    print("Done!")
-    
-   
-    
+            print("Done!")
+            
+        
+            
