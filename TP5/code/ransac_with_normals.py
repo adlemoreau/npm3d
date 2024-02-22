@@ -167,14 +167,13 @@ def normals_recursive_RANSAC(points, nb_draws=100, threshold_in=0.1, max_angle=0
     plane_labels = np.arange(0, 0)
     remaining_indices = np.arange(n_points)
     normals = compute_normals(points, points, k=k, radius=radius)
-    print(normals.shape)
+
     for label in range(nb_planes):
         pt_plane, normal_plane, _ = normals_RANSAC(points[remaining_indices], 
                                         normals[remaining_indices], 
                                         nb_draws=nb_draws, 
                                         threshold_in=threshold_in, 
                                         max_angle=max_angle)
-        
         pts_in_plane = normals_in_plane(points[remaining_indices],
                                         pt_plane, 
                                         normal_plane,
@@ -228,18 +227,19 @@ if __name__ == '__main__':
     nb_draws = 400
     threshold_in = 0.10
     max_angle = 0.10
-    nb_planes_list = [2,3,4,5]
+    nb_planes_list = [5,2,3,4,5]
     for k in k_list:
         for nb_planes in nb_planes_list:
             t0 = time.time()
             pts_in_plane_indices, remaining_pts_indices, pts_in_plane_labels = normals_recursive_RANSAC(
-                points,
-                nb_draws,
-                threshold_in,
-                nb_planes,
-                k=k,
-                radius=radius
-            )
+                points, 
+                nb_draws=nb_draws, 
+                threshold_in = threshold_in,
+                max_angle = max_angle, 
+                nb_planes = nb_planes,
+                k=k, 
+                radius=None)
+
             t1 = time.time()
             print('normal recursive RANSAC done in {:.3f} seconds'.format(t1 - t0))
             str_save_best_plane = "../best_planes_normals_"+str(nb_planes)+"neighbors_"+str(k)+".ply"
@@ -262,7 +262,6 @@ if __name__ == '__main__':
                 ],
                 ["x", "y", "z", "red", "green", "blue", "label"],
             )
-
             print("Done!")
             
         
