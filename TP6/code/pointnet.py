@@ -71,7 +71,6 @@ class RandomSymmetry(object):
             point_cloud[:, axis] = c_max - point_cloud[:, axis]
         return point_cloud
 
-
         
 class ToTensor(object):
     def __call__(self, pointcloud):
@@ -79,7 +78,8 @@ class ToTensor(object):
 
 
 def default_transforms():
-    return transforms.Compose([RandomRotation_z(),RandomNoise(),RandomRotation_x(),RandomRotation_y(),RandomSymmetry(),ToTensor()])
+    return transforms.Compose([RandomRotation_z(), RandomNoise(), ToTensor()])
+    # return transforms.Compose([RandomRotation_z(), RandomNoise(), RandomRotation_x(), RandomRotation_y(), RandomSymmetry(), ToTensor()])
 
 def test_transforms():
     return transforms.Compose([ToTensor()])
@@ -223,7 +223,6 @@ class Tnet(nn.Module):
         return x
 
 
-
 class PointNetFull(nn.Module):
     def __init__(self, classes = 10):
         super().__init__()
@@ -299,10 +298,10 @@ def train(model, device, train_loader, test_loader=None, epochs=250):
         for i, data in enumerate(train_loader, 0):
             inputs, labels = data['pointcloud'].to(device).float(), data['category'].to(device)
             optimizer.zero_grad()
-            # outputs = model(inputs.transpose(1,2))
-            outputs, m3x3 = model(inputs.transpose(1,2))
-            # loss = basic_loss(outputs, labels)
-            loss = pointnet_full_loss(outputs, labels, m3x3)
+            outputs = model(inputs.transpose(1,2))
+            # outputs, m3x3 = model(inputs.transpose(1,2))
+            loss = basic_loss(outputs, labels)
+            # loss = pointnet_full_loss(outputs, labels, m3x3)
             loss.backward()
             optimizer.step()
         scheduler.step()
@@ -314,8 +313,8 @@ def train(model, device, train_loader, test_loader=None, epochs=250):
             with torch.no_grad():
                 for data in test_loader:
                     inputs, labels = data['pointcloud'].to(device).float(), data['category'].to(device)
-                    #outputs = model(inputs.transpose(1,2))
-                    outputs, __ = model(inputs.transpose(1,2))
+                    outputs = model(inputs.transpose(1,2))
+                    # outputs, __ = model(inputs.transpose(1,2))
                     _, predicted = torch.max(outputs.data, 1)
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
@@ -330,7 +329,6 @@ if __name__ == '__main__':
     
     ROOT_DIR = "../data/ModelNet10_PLY"
     
-    # device = torch.device("mps" if torch.backends.mps.is_available() else "cpu")
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
     print("Device: ", device)
     
@@ -347,9 +345,9 @@ if __name__ == '__main__':
     train_loader = DataLoader(dataset=train_ds, batch_size=32, shuffle=True)
     test_loader = DataLoader(dataset=test_ds, batch_size=32)
 
-    # model = MLP()
+    model = MLP()
     # model = PointNetBasic()
-    model = PointNetFull()
+    # model = PointNetFull()
     
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     print("Number of parameters in the Neural Networks: ", sum([np.prod(p.size()) for p in model_parameters]))
