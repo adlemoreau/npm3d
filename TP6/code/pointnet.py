@@ -23,6 +23,7 @@ from torchvision import transforms, utils
 import torch.nn as nn
 import torch.nn.functional as F
 import sys
+import matplotlib.pyplot as plt
 
 # Import functions to read and write ply files
 from ply import write_ply, read_ply
@@ -289,19 +290,19 @@ def pointnet_full_loss(outputs, labels, m3x3, alpha = 0.001):
 
 
 def train(model, device, train_loader, test_loader=None, epochs=250):
-    # optimizer = torch.optim.Adam(model.parameters(), lr=0.01)
-    optimizer = torch.optim.Adam(model.parameters(), lr=0.001)
+    lr = 0.01
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
-    loss=0
+    loss = 0
+    test_acc_list = []  # List to store test accuracies
+
     for epoch in range(epochs): 
         model.train()
         for i, data in enumerate(train_loader, 0):
             inputs, labels = data['pointcloud'].to(device).float(), data['category'].to(device)
             optimizer.zero_grad()
             outputs = model(inputs.transpose(1,2))
-            # outputs, m3x3 = model(inputs.transpose(1,2))
             loss = basic_loss(outputs, labels)
-            # loss = pointnet_full_loss(outputs, labels, m3x3)
             loss.backward()
             optimizer.step()
         scheduler.step()
@@ -314,12 +315,25 @@ def train(model, device, train_loader, test_loader=None, epochs=250):
                 for data in test_loader:
                     inputs, labels = data['pointcloud'].to(device).float(), data['category'].to(device)
                     outputs = model(inputs.transpose(1,2))
-                    # outputs, __ = model(inputs.transpose(1,2))
                     _, predicted = torch.max(outputs.data, 1)
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
             test_acc = 100. * correct / total
             print('Epoch: %d, Loss: %.3f, Test accuracy: %.1f %%' %(epoch+1, loss, test_acc))
+            test_acc_list.append(test_acc)  # Append the test accuracy of the current epoch to the list
+
+    # After the training loop, plot test accuracy vs. number of epochs
+    plt.figure(figsize=(10, 6))
+    plt.plot(range(1, epochs+1), test_acc_list, marker='o', linestyle='-', color='b', label='Test Accuracy')
+    plt.title('Test Accuracy vs. Number of Epochs')
+    plt.xlabel('Epochs')
+    plt.ylabel('Test Accuracy (%)')
+    plt.legend()
+    plt.grid(True)
+    
+    # Save the plot to a file in the workspace
+    plt.savefig(f"test_accuracy_vs_epochs_{epochs}_{lr}.png")
+    plt.show()  # Display the plot as well
 
 
  
@@ -345,15 +359,15 @@ if __name__ == '__main__':
     train_loader = DataLoader(dataset=train_ds, batch_size=32, shuffle=True)
     test_loader = DataLoader(dataset=test_ds, batch_size=32)
 
-    model = MLP()
-    # model = PointNetBasic()
+    # model = MLP()
+    model = PointNetBasic()
     # model = PointNetFull()
     
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     print("Number of parameters in the Neural Networks: ", sum([np.prod(p.size()) for p in model_parameters]))
     model.to(device);
     
-    train(model, device, train_loader, test_loader, epochs = 10)
+    train(model, device, train_loader, test_loader, epochs = 200)
     
     t1 = time.time()
     print("Total time for training : ", t1-t0)
