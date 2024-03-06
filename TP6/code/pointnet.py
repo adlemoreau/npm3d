@@ -11,6 +11,7 @@
 #      Jean-Emmanuel DESCHAUD - 21/02/2023
 #
 
+from ctypes import POINTER
 import numpy as np
 import random
 import math
@@ -80,7 +81,9 @@ class ToTensor(object):
 
 def default_transforms():
     return transforms.Compose([RandomRotation_z(), RandomNoise(), ToTensor()])
-    # return transforms.Compose([RandomRotation_z(), RandomNoise(), RandomRotation_x(), RandomRotation_y(), RandomSymmetry(), ToTensor()])
+
+def augmented_transforms():
+    return transforms.Compose([RandomRotation_z(), RandomNoise(), RandomRotation_x(), RandomRotation_y(), RandomSymmetry(), ToTensor()])
 
 def test_transforms():
     return transforms.Compose([ToTensor()])
@@ -278,18 +281,16 @@ def basic_loss(outputs, labels):
     criterion = torch.nn.CrossEntropyLoss()
     return criterion(outputs, labels)
 
-def pointnet_full_loss(outputs, labels, m3x3, alpha = 0.001):
+def pointnet_full_loss(outputs, labels, m3x3, alpha=0.001):
     criterion = torch.nn.CrossEntropyLoss()
-    bs=outputs.size(0)
-    id3x3 = torch.eye(3, requires_grad=True).repeat(bs,1,1)
+    bs = outputs.size(0)
+    id3x3 = torch.eye(3, requires_grad=True).repeat(bs, 1, 1)
     if outputs.is_cuda:
-        id3x3=id3x3.cuda()
-    diff3x3 = id3x3-torch.bmm(m3x3,m3x3.transpose(1,2))
+        id3x3 = id3x3.cuda()
+    diff3x3 = id3x3 - torch.bmm(m3x3, m3x3.transpose(1, 2))
     return criterion(outputs, labels) + alpha * (torch.norm(diff3x3)) / float(bs)
 
-
-
-def train(model, device, train_loader, test_loader=None, epochs=250):
+def train(model, device, train_loader, test_loader=None, epochs=250, model_type='regular'):
     lr = 0.01
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=20, gamma=0.5)
@@ -301,8 +302,12 @@ def train(model, device, train_loader, test_loader=None, epochs=250):
         for i, data in enumerate(train_loader, 0):
             inputs, labels = data['pointcloud'].to(device).float(), data['category'].to(device)
             optimizer.zero_grad()
-            outputs = model(inputs.transpose(1,2))
-            loss = basic_loss(outputs, labels)
+            if model_type == 'regular':
+              outputs = model(inputs.transpose(1,2))
+              loss = basic_loss(outputs, labels)
+            elif model_type == 'full':
+              outputs, m3x3 = model(inputs.transpose(1, 2))
+              loss = pointnet_full_loss(outputs, labels, m3x3, alpha = 0.001)
             loss.backward()
             optimizer.step()
         scheduler.step()
@@ -314,7 +319,10 @@ def train(model, device, train_loader, test_loader=None, epochs=250):
             with torch.no_grad():
                 for data in test_loader:
                     inputs, labels = data['pointcloud'].to(device).float(), data['category'].to(device)
-                    outputs = model(inputs.transpose(1,2))
+                    if model_type == 'regular':
+                      outputs = model(inputs.transpose(1,2))
+                    elif model_type == 'full':
+                      outputs, m3x3 = model(inputs.transpose(1, 2))
                     _, predicted = torch.max(outputs.data, 1)
                     total += labels.size(0)
                     correct += (predicted == labels).sum().item()
@@ -340,13 +348,15 @@ def train(model, device, train_loader, test_loader=None, epochs=250):
 if __name__ == '__main__':
     
     t0 = time.time()
-    
-    ROOT_DIR = "../data/ModelNet10_PLY"
+
+    ROOT_DIR = "./data/ModelNet10_PLY/"
     
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") 
     print("Device: ", device)
-    
-    train_ds = PointCloudData_RAM(ROOT_DIR, folder='train', transform=default_transforms())
+
+    train_ds = PointCloudData_RAM(ROOT_DIR, folder='train', transform=augmented_transforms())
+
+    #train_ds = PointCloudData_RAM(ROOT_DIR, folder='train', transform=default_transforms())
     test_ds = PointCloudData_RAM(ROOT_DIR, folder='test', transform=test_transforms())
 
     inv_classes = {i: cat for cat, i in train_ds.classes.items()}
@@ -361,13 +371,14 @@ if __name__ == '__main__':
 
     # model = MLP()
     model = PointNetBasic()
-    # model = PointNetFull()
-    
+    model_type = 'regular'
+    #model = PointNetFull()
+    #model_type = 'full'
     model_parameters = filter(lambda p: p.requires_grad, model.parameters())
     print("Number of parameters in the Neural Networks: ", sum([np.prod(p.size()) for p in model_parameters]))
     model.to(device);
     
-    train(model, device, train_loader, test_loader, epochs = 200)
+    train(model, device, train_loader, test_loader, epochs = 200, model_type = model_type)
     
     t1 = time.time()
     print("Total time for training : ", t1-t0)
